@@ -11,6 +11,7 @@ const { v4: uuidv4 } = require('uuid')
 const fs = require('fs')
 const path = require('path')
 
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
 
 const app = express()
 const PORT = 9000
@@ -21,14 +22,17 @@ const prisma = new PrismaClient({ })
 const io = new Server({ cors: '*' } )
 
 const kafka = new Kafka({
-    clientId: ``,
-    brokers: [''],
+    clientId: `api-server`,
+    brokers: process.env.KAFKA_BROKERS?.split(','),
+    connectionTimeout: 30000,
+    authenticationTimeout: 30000,
+    requestTimeout: 30000,
     ssl: {
-        ca: [fs.readFileSync(path.join(__dirname, 'kafka.pem'), 'utf-8')],
+        ca: [fs.readFileSync(path.join(__dirname, '..', 'certs', 'kafka.pem'), 'utf-8')],
     },
     sasl: {
-        username: '',
-        password: '',
+        username: process.env.KAFKA_SASL_USERNAME,
+        password: process.env.KAFKA_SASL_PASSWORD,
         mechanism: 'plain'
     }
 })
@@ -36,10 +40,10 @@ const kafka = new Kafka({
 const consumer = kafka.consumer({ groupId: 'api-server-logs-consumer' })
 
 const client = createClient({
-    host: '',
+    url: process.env.CLICKHOUSE_URL,
     database: 'default',
-    username: '',
-    password: ''
+    username: process.env.CLICKHOUSE_USERNAME,
+    password: process.env.CLICKHOUSE_PASSWORD
 })
 
 io.on('connection', socket => {
@@ -55,14 +59,14 @@ io.listen(9002, () => console.log('Socket Server 9002'))
 const ecsClient = new ECSClient({
     region: 'ap-south-1',
     credentials: {
-        accessKeyId: '',
-        secretAccessKey: ''
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     }
 })
 
 const config = {
-    CLUSTER: '',
-    TASK: ''
+    CLUSTER: 'arn:aws:ecs:ap-south-1:818520454971:cluster/deplo-builder-cluster',
+    TASK: 'arn:aws:ecs:ap-south-1:818520454971:task-definition/deplo-builder-task'
 }
 
 app.use(express.json())
@@ -112,22 +116,63 @@ app.post('/deploy',async (req, res) => {
         networkConfiguration:{
             awsvpcConfiguration:{
                 assignPublicIp:'ENABLED',
-                subnets: ['','',''],
-                securityGroups: ['']
+                subnets: ['subnet-0890fc46bff79ac99','subnet-094c45983b0afe4d4','subnet-0f2bb92e91cc6d3d8'],
+                securityGroups: ['sg-04acfe9173ef56091']
             }
         },
         overrides: {
-            containerOverrides: [
+    containerOverrides: [
+        {
+            name: 'deplo-builder-image',
+            environment: [
                 {
-                    name: 'deplo-builder-image',
-                    environment: [
-                        {name: 'GIT_REPOSITORY_URL',value: project.gitURL },
-                        {name: 'Project_ID',value: projectId },
-                        {name: 'DEPLOYEMENT_ID',value: deployment.id },
-                    ]
+                    name: 'GIT_REPOSITORY_URL',
+                    value: project.gitURL
+                },
+                {
+                    name: 'Project_ID',
+                    value: projectId
+                },
+                {
+                    name: 'DEPLOYEMENT_ID',
+                    value: deployment.id
+                },
+                {
+                    name: 'KAFKA_BROKERS',
+                    value: process.env.KAFKA_BROKERS
+                },
+                {
+                    name: 'KAFKA_SASL_USERNAME',
+                    value: process.env.KAFKA_SASL_USERNAME
+                },
+                {
+                    name: 'KAFKA_SASL_PASSWORD',
+                    value: process.env.KAFKA_SASL_PASSWORD
+                },
+                {
+                    name: 'AWS_ACCESS_KEY_ID',
+                    value: process.env.AWS_ACCESS_KEY_ID
+                },
+                {
+                    name: 'AWS_SECRET_ACCESS_KEY',
+                    value: process.env.AWS_SECRET_ACCESS_KEY
+                },
+                {
+                    name: 'CLICKHOUSE_URL',
+                    value: process.env.CLICKHOUSE_URL
+                },
+                {
+                    name: 'CLICKHOUSE_USERNAME',
+                    value: process.env.CLICKHOUSE_USERNAME
+                },
+                {
+                    name: 'CLICKHOUSE_PASSWORD',
+                    value: process.env.CLICKHOUSE_PASSWORD
                 }
             ]
         }
+    ]
+}
     })
 
     await ecsClient.send(command);

@@ -5,18 +5,20 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3')
 const mime = require('mime-types')
 const { Kafka } = require('kafkajs')
 
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
+
 const Project_ID = process.env.Project_ID
 const DEPLOYEMENT_ID = process.env.DEPLOYEMENT_ID
 
 const kafka = new Kafka({
     clientId: `docker-build-derver-${Project_ID}`,
-    brokers: [''],
+    brokers: process.env.KAFKA_BROKERS?.split(','),
     ssl: {
-        ca: [fs.readFileSync(path.join(__dirname, 'kafka.pem'), 'utf-8')],
+        ca: [fs.readFileSync(path.join(__dirname, '..', 'certs', 'kafka.pem'), 'utf-8')],
     },
     sasl: {
-        username: '',
-        password: '',
+        username: process.env.KAFKA_SASL_USERNAME,
+        password: process.env.KAFKA_SASL_PASSWORD,
         mechanism: 'plain'
     }
 })
@@ -24,8 +26,8 @@ const kafka = new Kafka({
 const s3Client = new S3Client({
     region: 'ap-south-1',
     credentials: {
-        accessKeyId: '',
-        secretAccessKey: ''
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     }
 })
 
@@ -42,7 +44,7 @@ async function init() {
     const Output_Dir_Path = path.join(__dirname, 'output')
 
     await publishLog(`Cleaning up previous installations...`)
-    const cleanCmd = `cd ${Output_Dir_Path} && rm -rf node_modules package-lock.json && npm install`
+    const cleanCmd = `cd "${Output_Dir_Path}" && rm -rf node_modules package-lock.json && npm install`
     await publishLog(`Running: ${cleanCmd}`)
 
     const installExitCode = await new Promise((resolve) => {
@@ -69,7 +71,7 @@ async function init() {
 
     await publishLog(`Running build...`)
     const buildExitCode = await new Promise((resolve) => {
-        const buildProcess = exec(`cd ${Output_Dir_Path} && npm run build`)
+        const buildProcess = exec(`cd "${Output_Dir_Path}" && npm run build`)
         
         buildProcess.stdout.on('data', async (data) => {
             console.log(data.toString())
@@ -83,7 +85,6 @@ async function init() {
         
         buildProcess.on('close', (code) => resolve(code))
     })
-
     if (buildExitCode !== 0) {
         console.error('Build failed with code', buildExitCode)
         await publishLog(`Build failed with code ${buildExitCode}`)

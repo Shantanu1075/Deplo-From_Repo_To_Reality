@@ -5,10 +5,12 @@ const { PrismaClient } = require('@prisma/client')
 const app = express()
 const PORT = 8000
 
-const BASE_PATH = ''
+const BASE_PATH = 'https://project-deplo.s3.ap-south-1.amazonaws.com/__outputs'
 const proxy = httpProxy.createProxy()
 const prisma = new PrismaClient()
+const path = require('path')
 
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') })
 // Error handling middleware
 app.use(async (err, req, res, next) => {
   console.error(err)
