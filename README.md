@@ -1,137 +1,165 @@
-# Deplo - From Repo To Reality
+# DEPLO — From Repo To Reality
 
-**Deplo - From Repo To Reality** is a comprehensive full-stack solution that integrates a Next.js frontend, an API server, a build server, and an S3 reverse proxy. This project is structured to deliver a streamlined development and deployment pipeline from code to production.
+**Turn a GitHub repository into a live website without manually cloning, installing dependencies, or building the project yourself.**
+
+Deplo is a cloud-based deployment platform that automates the process of building frontend repositories and serving their output through unique project URLs. It uses isolated build environments, cloud storage, and real-time log streaming to make deployments easier to monitor and manage.
 
 ---
 
-## 📁 Project Structure
+## Overview
 
-```
-Deplo-From_Repo_To_Reality/
-├── frontend-nextjs/        # Next.js frontend application
-├── api-server/             # Backend API server
-├── Build-Server/           # Project build scripts and configurations
-├── s3-reverse-proxy/       # Reverse proxy for interfacing with AWS S3
-```
+Deploying a project locally usually requires cloning a repository, installing dependencies, configuring the environment, and running the build process. Deplo automates these steps through a cloud-based deployment pipeline.
+
+Provide a GitHub repository URL, and Deplo builds the project and publishes the generated static files. Once the deployment succeeds, the application is accessible through its unique subdomain.
+
+### Key Features
+
+- **GitHub-based deployments:** Submit a repository URL to start a deployment.
+- **Isolated builds:** Run each deployment in its own container using AWS ECS Fargate.
+- **Automated build pipeline:** Clone repositories, install dependencies, and build applications.
+- **Real-time build logs:** Monitor deployment progress through Socket.IO.
+- **Asynchronous log processing:** Stream build logs through Kafka and store them in ClickHouse.
+- **Cloud artifact storage:** Store generated application files in Amazon S3.
+- **Subdomain-based routing:** Route requests to the correct deployment using a reverse proxy.
+- **Deployment status tracking:** Store deployment metadata and track build outcomes.
+
+---
 
 ## Demo
 
-![Screenshot from 2025-04-22 23-37-11](https://github.com/user-attachments/assets/9f7906c2-aab6-4dea-92a7-8a437acf853b)
-![Screenshot from 2025-04-22 23-36-35](https://github.com/user-attachments/assets/1b813e82-5e30-4b84-b33d-ee7cad630494)
-![Screenshot from 2025-04-22 23-36-58](https://github.com/user-attachments/assets/9cc66c94-ea4f-452d-ba90-5156b90bcb90)
+![Deplo screenshot — deployment interface](https://github.com/user-attachments/assets/9f7906c2-aab6-4dea-92a7-8a437acf853b)
+
+![Deplo screenshot — project interface](https://github.com/user-attachments/assets/1b813e82-5e30-4b84-b33d-ee7cad630494)
+
+![Deplo screenshot — deployment interface](https://github.com/user-attachments/assets/9cc66c94-ea4f-452d-ba90-5156b90bcb90)
 
 ---
 
-## 🚀 Getting Started
+## Architecture
 
-### ✅ Prerequisites
+Deplo separates request handling, application builds, log processing, and artifact delivery into distinct components.
 
-Ensure the following are installed:
+### Deployment Workflow
 
-* **Node.js** (v14 or higher)
-* **npm** or **Yarn**
-* **Docker** (for containerization)
-* **AWS CLI** (for S3 integration)
+1. **Submit a repository**  
+   The user provides a GitHub repository URL through the Next.js frontend.
+
+2. **Validate and register the deployment**  
+   The Express API server validates the request using Zod, generates project and deployment identifiers, assigns a subdomain, and stores the metadata in PostgreSQL through Prisma.
+
+3. **Start an isolated build**  
+   The API server starts an AWS ECS Fargate task. The task uses a prebuilt Docker image stored in Amazon ECR to clone the repository, install dependencies, and build the application.
+
+4. **Stream build logs**  
+   The build container sends log events to Kafka. A consumer in the API layer processes these events, stores them in ClickHouse, and forwards them to the frontend through Socket.IO.
+
+5. **Store build artifacts**  
+   After a successful build, the generated static files are uploaded to Amazon S3. The files are organized using project and deployment identifiers.
+
+6. **Serve the application**  
+   The reverse proxy uses the project's subdomain to route incoming requests to the appropriate files in S3. The API updates the deployment status to `READY` or `FAIL`.
+
+This workflow keeps builds separate from API request handling and allows multiple deployments to run independently.
 
 ---
 
-## 🔧 Installation
+## Technology Stack
 
-### 1. Clone the Repository
+| Technology | Purpose |
+| --- | --- |
+| Next.js and React | Frontend application |
+| Tailwind CSS | Frontend styling |
+| Node.js and Express.js | API server and backend request handling |
+| Zod | API request validation |
+| Prisma ORM | Database access and schema management |
+| PostgreSQL | Project metadata, deployment records, and subdomain mappings |
+| Docker | Containerized build environments |
+| AWS ECS Fargate | Running isolated deployment tasks |
+| Amazon ECR | Storing the Docker builder image |
+| Amazon S3 | Storing generated static files |
+| Apache Kafka | Asynchronous build-log streaming |
+| ClickHouse | Persistent build-log storage and analytics |
+| Socket.IO | Real-time communication with the frontend |
+
+---
+
+## Project Structure
+
+The repository is organized into separate components for the frontend, API, build execution, database management, and artifact delivery.
+
+| Directory or file | Responsibility |
+| --- | --- |
+| `frontend/` | Next.js frontend application |
+| `api-server/` | Express API, deployment orchestration, and log processing |
+| `Build-Server/` | Docker-based build environment and build scripts |
+| `packages/prisma/` | Prisma schema, database configuration, and migrations |
+| `s3-reverse-proxy/` | Routes requests to the correct stored build artifacts |
+| `.env.example` | Example environment configuration |
+| `setup.md` | Additional setup instructions |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+Before setting up Deplo, make sure you have:
+
+- Node.js and npm
+- Yarn, where required by the frontend
+- Docker
+- An AWS account with the required permissions
+- AWS CLI configured for your environment
+- A PostgreSQL database
+- Kafka and ClickHouse services
+- The required environment variables and certificates
+
+### Installation
+
+#### 1. Clone the repository
 
 ```bash
 git clone https://github.com/Shantanu1075/Deplo-From_Repo_To_Reality.git
 cd Deplo-From_Repo_To_Reality
 ```
 
-### 2. Install Dependencies
+#### 2. Configure environment variables
 
-Navigate to each directory and run:
+Review `.env.example` and `setup.md`. Configure the required database, AWS, Kafka, ClickHouse, and service connection settings for your environment.
 
-#### Frontend
+**Do not commit credentials, private keys, or secret environment files to version control.**
 
-```bash
-cd frontend-nextjs
-npm install
-```
+#### 3. Install dependencies
 
-#### API Server
+Install dependencies for the frontend, API server, build server, and reverse proxy using the package manager specified for each component.
 
-```bash
-cd ../api-server
-npm install
-```
+#### 4. Configure the infrastructure
 
-#### Build Server
+Set up the required AWS resources, database, message broker, log storage, and networking configuration.
 
-```bash
-cd ../Build-Server
-npm install
-```
+#### 5. Start the services
 
-#### S3 Reverse Proxy
+Follow `setup.md` to configure and start the components in the correct order.
 
-```bash
-cd ../s3-reverse-proxy
-npm install
-```
+> **Note:** Deplo depends on external infrastructure and service configuration. Installing the Node.js dependencies alone is not sufficient to run the complete deployment pipeline. Refer to the repository's setup instructions for the configuration requirements.
 
 ---
 
-## ⚙️ Usage
+## Contributing
 
-### Start Each Component
+Contributions that improve deployment reliability, build isolation, log processing, documentation, or artifact routing are welcome.
 
-#### 1. API Server
+1. Fork the repository.
+2. Create a branch for your changes.
+3. Implement and test your changes.
+4. Submit a pull request describing the problem and proposed solution.
 
-```bash
-cd api-server
-npm start
-```
-
-#### 2. Frontend
-
-```bash
-cd ../frontend-nextjs
-npm run dev
-```
-
-#### 3. S3 Reverse Proxy
-
-```bash
-cd ../s3-reverse-proxy
-npm start
-```
-
-#### 4. Build Project
-
-```bash
-cd ../Build-Server
-npm run build
-```
+Please keep changes focused and include relevant testing or reproduction steps when possible.
 
 ---
 
-## 🔐 Environment Variables
+## Author
 
-Each directory requires a `.env` file with relevant environment variables. Refer to each folder’s README or sample `.env.example` for guidance.
+**Shantanu Baban Kumbhirkar**
 
----
-
-## 📦 Deployment
-
-Containerize and deploy using Docker.
-
-### 1. Build Docker Images
-
-```bash
-docker-compose build
-```
-
-### 2. Run Containers
-
-```bash
-docker-compose up
-```
-
-Ensure your `docker-compose.yml` is configured properly for all services.
+[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:shantanukumbhirkar50@gmail.com) [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/shantanu1075/) [![Institute](https://img.shields.io/badge/IIIT-Manipur-00529B?style=for-the-badge&logo=googlescholar&logoColor=white)](https://www.iiitmanipur.ac.in/)
